@@ -1,0 +1,8 @@
+fastapi==0.116.1
+uvicorn==0.30.0
+openai==1.99.7
+openpyxl==3.1.5
+httpx==0.28.1
+qdrant-client==1.14.2
+pydantic==2.8.0
+pydantic-settings==2.4.0
