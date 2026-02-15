@@ -25,8 +25,8 @@ class Orchestrator:
             resp = await client.get(file_url)
             file_bytes = resp.content
         
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-
+        # file_hash = hashlib.sha256(file_bytes).hexdigest()
+        file_hash = "sample_poc_collection"
         # 2. Parse
         metadata = await self.parser.parse_bytes(file_bytes)
         data = self.parser.extract_data(metadata, file_bytes)
@@ -63,3 +63,93 @@ class Orchestrator:
             "sheets": list(metadata.keys()),
             "relationships": relationships
         }
+    
+
+    async def process_query_from_bytes(self, file_bytes: bytes, query: str, top_k: int, sheet_filter: str = None):
+        # 1. Hash
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        # 2. Parse (NOW ASYNC)
+        metadata = await self.parser.parse_bytes(file_bytes)
+        data = await self.parser.extract_data(metadata, file_bytes)
+
+        # 3. Analyze
+        relationships = self.analyzer.detect_relationships(metadata, data)
+        roles = {sheet: self.analyzer.detect_roles(meta, data[sheet], relationships) for sheet, meta in metadata.items()}
+
+        # 4. Chunk
+        chunks = self.chunker.build_chunks(metadata, data, roles, relationships)
+
+        # 5. Store
+        is_new = await self.vector_store.ensure_collection(file_hash)
+        if is_new:
+            embeddings = await self.embedder.embed([c.content for c in chunks])
+            await self.vector_store.upsert(file_hash, chunks, embeddings)
+
+        # 6. Retrieve
+        query_vec = (await self.embedder.embed([query]))[0]
+        filters = {"sheet_name": sheet_filter}
+        results = await self.vector_store.search(file_hash, query_vec, top_k, filters)
+
+        # 7. Generate
+        context = "\n\n".join([r["content"] for r in results])
+        answer = await self.llm.generate_answer(query, context)
+
+        await self.vector_store.close()
+
+        return {
+            "answer": answer,
+            "collection_name": self.vector_store._collection_name(file_hash),
+            "chunks_indexed": len(chunks),
+            "matches": results[:5],
+            "sheets": list(metadata.keys()),
+            "relationships": relationships
+        }
+    
+    # async def process_query_from_bytes(self, file_bytes: bytes, query: str, top_k: int, sheet_filter: str = None):
+    #     """Process file bytes directly instead of fetching from URL."""
+    #     # 1. Hash
+    #     file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    #     # 2. Parse
+    #     # Note: ExcelParser expects bytes now, previously it handled fetching
+    #     metadata = await self.parser.parse_bytes(file_bytes)
+    #     data = self.parser.extract_data(metadata, file_bytes)
+
+    #     # 3. Analyze
+    #     relationships = self.analyzer.detect_relationships(metadata, data)
+    #     roles = {sheet: self.analyzer.detect_roles(meta, data[sheet], relationships) for sheet, meta in metadata.items()}
+
+    #     # 4. Chunk
+    #     chunks = self.chunker.build_chunks(metadata, data, roles, relationships)
+
+    #     # 5. Store
+    #     is_new = await self.vector_store.ensure_collection(file_hash)
+    #     if is_new:
+    #         logger.info(f"New file detected (Hash: {file_hash[:8]}). Ingesting...")
+    #         embeddings = await self.embedder.embed([c.content for c in chunks])
+    #         await self.vector_store.upsert(file_hash, chunks, embeddings)
+    #     else:
+    #         logger.info("File already indexed. Retrieving answers.")
+
+    #     # 6. Retrieve
+    #     query_vec = (await self.embedder.embed([query]))[0]
+    #     filters = {"sheet_name": sheet_filter}
+    #     results = await self.vector_store.search(file_hash, query_vec, top_k, filters)
+
+    #     # 7. Generate
+    #     context = "\n\n".join([r["content"] for r in results])
+    #     answer = await self.llm.generate_answer(query, context)
+
+    #     await self.vector_store.close()
+
+    #     return {
+    #         "answer": answer,
+    #         "collection_name": self.vector_store._collection_name(file_hash),
+    #         "chunks_indexed": len(chunks),
+    #         "matches": results[:5],
+    #         "sheets": list(metadata.keys()),
+    #         "relationships": relationships
+    #     }
+    
+

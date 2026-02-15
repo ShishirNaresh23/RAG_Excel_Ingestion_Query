@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel RAG Chatbot</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f3f4f6;
+            --chat-bg: #ffffff;
+            --user-msg-bg: #eff6ff;
+            --bot-msg-bg: #f9fafb;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        /* File Upload Area */
+        .upload-area {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            background-color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
+        }
+
+        #file-name {
+            font-size: 0.9rem;
+            color: #4b5563;
+            font-style: italic;
+        }
+
+        /* Chat Area */
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 80%;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .user-message {
+            background-color: var(--user-msg-bg);
+            align-self: flex-end;
+            border: 1px solid #bfdbfe;
+        }
+
+        .bot-message {
+            background-color: var(--bot-msg-bg);
+            align-self: flex-start;
+            border: 1px solid #e5e7eb;
+            white-space: pre-wrap; /* Preserve formatting */
+        }
+
+        .bot-message strong {
+            color: var(--primary-color);
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+        }
+
+        #query-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        #query-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .loading {
+            display: none;
+            color: #6b7280;
+            font-style: italic;
+            margin-top: 5px;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        Excel Semantic RAG Assistant
+    </header>
+
+    <!-- Upload Section -->
+    <div class="upload-area">
+        <div class="file-input-wrapper">
+            <button class="btn" id="upload-btn">📁 Load Excel File</button>
+            <input type="file" id="file-input" accept=".xlsx, .xls, .csv">
+        </div>
+        <span id="file-name">No file chosen</span>
+    </div>
+
+    <!-- Chat History -->
+    <div id="chat-box">
+        <div class="bot-message">
+            Hello! Please upload an Excel file (.xlsx) to start. Once loaded, ask me anything about its contents.
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading" id="loading-indicator" style="padding: 0 20px;">
+        Processing file and thinking...
+    </div>
+
+    <!-- Query Input -->
+    <div class="input-area">
+        <input type="text" id="query-input" placeholder="Ask a question about the data..." disabled>
+        <button class="btn" id="send-btn" disabled>Send</button>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('file-input');
+    const fileNameDisplay = document.getElementById('file-name');
+    const queryInput = document.getElementById('query-input');
+    const sendBtn = document.getElementById('send-btn');
+    const chatBox = document.getElementById('chat-box');
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    let selectedFile = null;
+
+    // 1. Handle File Selection
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            selectedFile = e.target.files[0];
+            fileNameDisplay.textContent = selectedFile.name;
+            
+            // Enable input for immediate query (upload will happen on first send)
+            queryInput.disabled = false;
+            sendBtn.disabled = false;
+            queryInput.focus();
+            
+            addMessage("bot", `File "${selectedFile.name}" ready. Ask me a question to start the analysis.`);
+        }
+    });
+
+    // 2. Handle Send Query
+    sendBtn.addEventListener('click', async () => {
+        const query = queryInput.value.trim();
+        if (!query || !selectedFile) return;
+
+        // UI Updates
+        addMessage("user", query);
+        queryInput.value = "";
+        toggleLoading(true);
+        sendBtn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            formData.append('excel_file', selectedFile);
+            formData.append('query', query);
+            formData.append('top_k', '10');
+
+            const response = await fetch('http://localhost:8000/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || "Server error");
+            }
+
+            const data = await response.json();
+
+            // Format the bot response
+            let botResponse = `**Answer:**\n${data.answer}\n\n`;
+            botResponse += `*Chunks Indexed: ${data.chunks_indexed} | Top Score: ${data.top_matches[0]?.score || 'N/A'}*`;
+
+            addMessage("bot", botResponse);
+
+        } catch (error) {
+            console.error(error);
+            addMessage("bot", `Error: ${error.message}`);
+        } finally {
+            toggleLoading(false);
+            sendBtn.disabled = false;
+        }
+    });
+
+    // Allow pressing Enter to send
+    queryInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendBtn.click();
+    });
+
+    // Helper: Add Message to Chat
+    function addMessage(sender, text) {
+        const div = document.createElement('div');
+        div.className = sender === 'user' ? 'message user-message' : 'message bot-message';
+        div.innerHTML = text; // Using innerHTML to support basic bold tags if needed
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+    }
+
+    // Helper: Toggle Loading
+    function toggleLoading(show) {
+        loadingIndicator.style.display = show ? 'block' : 'none';
+        if (show) chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
