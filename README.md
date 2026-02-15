@@ -1,17 +1,17 @@
-Here is a comprehensive `README.md` for your project repository.
+# 📊 Excel RAG Semantic Parser
 
-```markdown
-# Excel RAG Semantic Parser
+An intelligent **Excel-to-RAG pipeline** that transforms static spreadsheets into a queryable knowledge base. This project uses Object-Oriented Programming (OOP) principles to parse Excel files, detect cross-sheet relationships, generate semantically enriched chunks, and store them in Qdrant for precise natural language retrieval.
 
-An intelligent Excel-to-RAG pipeline that transforms static spreadsheets into a queryable knowledge base. This project uses Object-Oriented Programming (OOP) principles to parse Excel files, detect cross-sheet relationships, generate semantically enriched chunks, and store them in Qdrant for precise natural language retrieval.
+---
 
 ## 🚀 Key Features
 
-- **Semantic Chunking**: Converts raw rows into natural language summaries (Strategy 3), preserving cell context and column meaning.
-- **Relationship Detection**: Automatically detects Primary Keys (PK), Foreign Keys (FK), and cross-sheet relationships.
-- **3-Tier Storage**: Stores Row, Column Profile, and Sheet Summary chunks to handle different query granularities.
-- **OOP Architecture**: Modular design with separate services for parsing, analysis, chunking, and vector storage.
-- **LLM-Powered Answers**: Uses GPT-4/GPT-4o-mini to synthesize retrieved context into precise answers.
+- ✅ **Semantic Chunking** — Converts raw rows into natural language summaries while preserving column meaning
+- 🔗 **Relationship Detection** — Automatically detects Primary Keys (PK), Foreign Keys (FK), and cross-sheet links
+- 🧱 **3-Tier Storage Strategy** — Row chunks, Column profiles, and Sheet summaries
+- 🧩 **OOP Architecture** — Modular services for parsing, analysis, chunking, and storage
+- 🤖 **LLM Answer Synthesis** — Uses GPT models to generate precise answers from retrieved context
+- ⚡ **Vector Search** — Powered by Qdrant embeddings
 
 ---
 
@@ -21,26 +21,27 @@ An intelligent Excel-to-RAG pipeline that transforms static spreadsheets into a 
 
 ```mermaid
 graph TD
-    Client[User Query] -->|POST /query| API[FastAPI Router]
+    Client[User Query] -->|POST query| API[FastAPI Router]
     API --> Orch[Orchestrator Service]
-    
-    subgraph "Processing Layer"
+
+    subgraph Processing_Layer
         Orch --> Parser[Excel Parser]
         Parser --> Analyzer[Schema Analyzer]
         Analyzer --> Chunker[Semantic Chunker]
-        Chunker --> Embedder[Embedder]
-        Embedder --> VectorStore[Vector Store]
+        Chunker --> Embedder[Embedding Service]
+        Embedder --> VectorStore[Vector Store Service]
     end
-    
-    subgraph "External Services"
-        VectorStore <--> Qdrant[(Qdrant DB)]
-        Embedder <--> OpenAI_Embed[OpenAI API]
+
+    subgraph External_Services
+        VectorStore <--> Qdrant["Qdrant DB"]
+        Embedder <--> OpenAIEmbed["OpenAI Embedding API"]
         Orch <--> LLM[LLM Service]
-        LLM <--> OpenAI_Chat[OpenAI API]
+        LLM <--> OpenAIChat["OpenAI Chat API"]
     end
-    
+
     Orch -->|Context Retrieval| LLM
     LLM -->|Final Answer| Client
+
 ```
 
 ### Data Transformation Pipeline
